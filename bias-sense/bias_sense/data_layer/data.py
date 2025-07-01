@@ -8,6 +8,9 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.compose import ColumnTransformer
 
+#Importando
+from google.cloud import bigquery
+
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     '''
