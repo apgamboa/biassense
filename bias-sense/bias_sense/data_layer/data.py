@@ -10,6 +10,9 @@ from sklearn.preprocessing import LabelEncoder
 
 
 
+#Importando
+from google.cloud import bigquery
+
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     '''
