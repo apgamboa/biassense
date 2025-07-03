@@ -32,6 +32,9 @@ def save_pickle(path, file_name, transformer_model):
 ##MIgrar esto a la clase utitlities cuando funcione
 
 
+#Importando
+from google.cloud import bigquery
+
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     '''
