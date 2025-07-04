@@ -8,8 +8,6 @@ from nltk.stem import WordNetLemmatizer
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import LabelEncoder
 
-
-
 #Importando
 from google.cloud import bigquery
 
@@ -66,6 +64,7 @@ def create_vectorizer(X: pd.DataFrame, target:str):
 
      # Vectorize the sentences
     count_vectorizer = CountVectorizer(max_df = 0.9, min_df=8)
+
     #text_vectorized = count_vectorizer.fit_transform(X['lemmatized_text'])
     count_vectorizer.fit(X[target])
 
@@ -115,7 +114,6 @@ def generate_preprocess_new_text(text:str, count_vectorizer):
     'aspect':["NA"]
     }
     data = pd.DataFrame(data)
-    print(data)
     data_clean = clean_data(data)
     X_processed = preprocess_features(data_clean, count_vectorizer)
 
