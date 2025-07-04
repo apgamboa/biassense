@@ -8,30 +8,6 @@ from nltk.stem import WordNetLemmatizer
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import LabelEncoder
 
-##MIgrar esto a la clase utitlities cuando funcione
-import os
-import pickle
-
-
-def load_pickle(path, file_name):
-    full_path = path / file_name
-    if os.path.isfile(full_path):
-        with open(full_path, "rb") as f:
-            try:
-                return pickle.load(f)
-            except Exception: # so many things could go wrong, can't be more specific.
-                pass
-    return None
-
-def save_pickle(path, file_name, transformer_model):
-    full_path = path / file_name
-    with open(full_path, "wb") as f:
-        pickle.dump(transformer_model, f)
-    return transformer_model
-
-##MIgrar esto a la clase utitlities cuando funcione
-
-
 #Importando
 from google.cloud import bigquery
 
@@ -87,8 +63,7 @@ def preprocess_features(X: pd.DataFrame, count_vectorizer) -> pd.DataFrame:
 def create_vectorizer(X: pd.DataFrame, target:str):
 
      # Vectorize the sentences
-    count_vectorizer = CountVectorizer(ngram_range = (1,2), max_df = 0.9, min_df=8)
-    #count_vectorizer = CountVectorizer(max_df = 0.9, min_df=8)
+    count_vectorizer = CountVectorizer(max_df = 0.9, min_df=8)
 
     #text_vectorized = count_vectorizer.fit_transform(X['lemmatized_text'])
     count_vectorizer.fit(X[target])

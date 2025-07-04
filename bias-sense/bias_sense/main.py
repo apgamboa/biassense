@@ -1,9 +1,8 @@
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
+import os
 from pathlib import Path
 from sklearn.model_selection import cross_validate
-from sklearn.feature_extraction.text import TfidfVectorizer
 from bias_sense.models.model import naive_bayes, naive_bayes_to_evaluate
 from sklearn.naive_bayes import MultinomialNB
 
@@ -12,7 +11,7 @@ from colorama import Fore, Style
 
 from bias_sense.data_layer.data import clean_data, preprocess_features, create_vectorizer, encoding_feature
 from bias_sense.data_layer.data import get_data, generate_preprocess_new_text, get_sample_data
-
+from bias_sense.utils.utilities import load_pickle, save_pickle
 
 def preprocess(data:pd.DataFrame, target:str):
     """
@@ -20,7 +19,6 @@ def preprocess(data:pd.DataFrame, target:str):
     Future: store processed data on BQ
     """
     print(Fore.MAGENTA + "\n ⭐️ Use case: preprocess" + Style.RESET_ALL)
-
     # Process data
     data_clean = clean_data(data)
 
@@ -32,9 +30,6 @@ def preprocess(data:pd.DataFrame, target:str):
 
     # transform or process data
     X_processed = preprocess_features(X, count_vectorizer)
-
-    # Encode y
-    #y_encoded, catalog_values_encoded = encoding_features(y,target)
 
 
     print("✅ preprocess() done \n")
@@ -51,7 +46,7 @@ def train(X:pd.DataFrame,y:np.array):
     print(Fore.MAGENTA + "\n ⭐️ Use case: train" + Style.RESET_ALL)
 
     model = naive_bayes(X, y)
-    model.fit(X, y)
+    #model.fit(X, y)
 
     print("✅ train() done \n")
 
@@ -89,47 +84,114 @@ def pred(X:pd.DataFrame, model: MultinomialNB):
     return y_pred
 
 
+
+
 if __name__ == '__main__':
     try:
-        #Create data set
         text = "This is a text to test in the model a tendency of religion or god"
-        data = get_data()
-        data_sample = get_sample_data(data)
 
-        ##Train the model and predict bias
-        X, count_vectorizer_std = preprocess(data_sample,'lemmatized_text') # preprocess data and get transformer, and catalog
-        y_encoded_bias, catalog_values_encoded_bias = encoding_feature(data_sample,'bias_type')
-        results_bias = evaluate(X, y_encoded_bias)
-        print(results_bias)
-        model_bias = train(X,y_encoded_bias)
-        X_new_bias = generate_preprocess_new_text(text, count_vectorizer_std)
-        y_result_bias = pred(X_new_bias, model_bias)
+        path_artifacts = Path(os.path.dirname(__file__))
+        path_artifacts = path_artifacts.parent.absolute() / 'artifacts' ## url artifacts
+        count_vectorizer_std = load_pickle(path_artifacts, 'count_vectorizer_std.pickle')
+
+        if (count_vectorizer_std is None):
+            print("Entra a entrenar de 0 y a guardar modelos")
+            #Create data set
+            data = get_data()
+            data_sample = get_sample_data(data)
+
+            ##Train the model and predict bias
+            X, count_vectorizer_std = preprocess(data_sample,'lemmatized_text') # preprocess data and get transformer
+            #Get encoded y and catalog encoded
+            y_encoded_bias, catalog_values_encoded_bias = encoding_feature(data_sample,'bias_type')
+            #Create metrics
+            metrics_bias = evaluate(X, y_encoded_bias)
+            metrics_bias = pd.DataFrame(metrics_bias)
+            #Train model
+            model_bias = train(X,y_encoded_bias)
+
+
+            #Get encoded y and catalog encoded
+            y_encoded_sentiment, catalog_values_encoded_sentiment = encoding_feature(data_sample,'sentiment')
+            #Evaluate a new model and predict sentiment
+            metrics_sentiment = evaluate(X, y_encoded_sentiment)
+            metrics_sentiment = pd.DataFrame(metrics_sentiment)
+            #Train a new model and predict sentiment
+            model_sentiment= train(X,y_encoded_sentiment)
+
+
+            #Train a new model and predict label
+            y_encoded_label, catalog_values_encoded_label = encoding_feature(data_sample,'label')
+            #Evaluate a new model and predict sentiment
+            metrics_label = evaluate(X, y_encoded_label)
+            metrics_label = pd.DataFrame(metrics_label)
+            #Train model
+            model_label= train(X,y_encoded_label)
+
+            #Save transformer std
+            count_vectorizer_std = save_pickle(path_artifacts, 'count_vectorizer_std.pickle',count_vectorizer_std)
+            #Save catalog encoded
+            catalog_values_encoded_bias.to_csv(path_artifacts/'catalog_values_encoded_bias.csv', index=False)
+            #Save metrics
+            metrics_bias.to_csv(path_artifacts /'metrics_bias.csv', index=False)
+            #Save model bias
+            model_bias = save_pickle(path_artifacts, 'model_bias.pickle',model_bias)
+
+            #Save sentiment objects
+            #Save catalog encoded sentiment
+            catalog_values_encoded_sentiment.to_csv(path_artifacts/'catalog_values_encoded_sentiment.csv', index=False)
+            #Save metrics sentiment
+            metrics_sentiment.to_csv(path_artifacts /'metrics_sentiment.csv', index=False)
+            #Save model sentiment
+            model_sentiment = save_pickle(path_artifacts, 'model_sentiment.pickle',model_sentiment)
+
+            #Save sentiment object
+            #Save catalog encoded label
+            catalog_values_encoded_label.to_csv(path_artifacts/'catalog_values_encoded_label.csv', index=False)
+            #Save metrics label
+            metrics_label.to_csv(path_artifacts /'metrics_label.csv', index=False)
+            #Save model label
+            model_label = save_pickle(path_artifacts, 'model_label.pickle',model_label)
+
+            print("Termina de entrenar de 0 y de guardar modelos")
+
+        else:
+            print("Entra a cargar modelos guardados")
+            #load transformer std
+            count_vectorizer_std = load_pickle(path_artifacts, 'count_vectorizer_std.pickle')
+            #load model bias
+            model_bias = load_pickle(path_artifacts, 'model_bias.pickle')
+            #load catalog bias
+            catalog_values_encoded_bias = pd.read_csv(path_artifacts/'catalog_values_encoded_bias.csv')
+
+            #load model sentiment
+            model_sentiment = load_pickle(path_artifacts, 'model_sentiment.pickle')
+            #load catalog sentiment
+            catalog_values_encoded_sentiment = pd.read_csv(path_artifacts/'catalog_values_encoded_sentiment.csv')
+
+            #load model label
+            model_label = load_pickle(path_artifacts, 'model_label.pickle')
+            #load catalog label
+            catalog_values_encoded_label = pd.read_csv(path_artifacts/'catalog_values_encoded_label.csv')
+
+            print("Termina de a cargar modelos guardados")
+
+        X_new = generate_preprocess_new_text(text, count_vectorizer_std)
+
+        y_result_bias = pred(X_new, model_bias)
         result_bias = catalog_values_encoded_bias.loc[catalog_values_encoded_bias['encoded_target'] == y_result_bias[0]]['target']
 
-        #Train a new model and predict sentiment
-        y_encoded_sentiment, catalog_values_encoded_sentiment = encoding_feature(data_sample,'sentiment')
-        model_sentiment = train(X,y_encoded_sentiment)
-        results_sentiment = evaluate(X, y_encoded_sentiment)
-        print(results_sentiment)
-        model_sentiment= train(X,y_encoded_sentiment)
-        X_new_sentiment = generate_preprocess_new_text(text, count_vectorizer_std)
-        y_result_sentiment = pred(X_new_sentiment, model_sentiment)
+        y_result_sentiment = pred(X_new, model_sentiment)
         result_sentiment = catalog_values_encoded_sentiment.loc[catalog_values_encoded_sentiment['encoded_target'] == y_result_sentiment[0]]['target']
 
-        #Train a new model and predict label
-        y_encoded_label, catalog_values_encoded_label = encoding_feature(data_sample,'label')
-        model_label= train(X,y_encoded_label)
-        results_label = evaluate(X, y_encoded_label)
-        print(results_label)
-        model_label= train(X,y_encoded_label)
-        X_new_label = generate_preprocess_new_text(text, count_vectorizer_std)
-        y_result_label = pred(X_new_label, model_label)
+        y_result_label = pred(X_new, model_label)
         result_label = catalog_values_encoded_label.loc[catalog_values_encoded_label['encoded_target'] == y_result_label[0]]['target']
 
         print(f"Text: {text}")
         print(f"Bias: {result_bias.item()}")
         print(f"Sentiment: {result_sentiment.item()}")
         print(f"Label: {result_label.item()}")
+
     except:
         import sys
         import traceback
