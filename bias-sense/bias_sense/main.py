@@ -5,13 +5,12 @@ from pathlib import Path
 from sklearn.model_selection import cross_validate
 from bias_sense.models.model import naive_bayes, naive_bayes_to_evaluate
 from sklearn.naive_bayes import MultinomialNB
-
-
+from models.model import metrics_NB
 from colorama import Fore, Style
-
 from bias_sense.data_layer.data import clean_data, preprocess_features, create_vectorizer, encoding_feature
-from bias_sense.data_layer.data import get_data, generate_preprocess_new_text, get_sample_data
-from bias_sense.utils.utilities import load_pickle, save_pickle
+from bias_sense.data_layer.data import get_data, generate_preprocess_new_text, get_sample_data,get_data_bq
+from bias_sense.utils.utilities import load_pickle, save_pickle , upload_all_pickles
+from bias_sense.params import MODEL_TARGET
 
 def preprocess(data:pd.DataFrame, target:str):
     """
@@ -64,6 +63,7 @@ def evaluate(X:pd.DataFrame,y:np.array):
 
     # Cross-validation
     metrics = cross_validate(model, X, y, cv = 5)
+    metrics_NB(X,y)
 
     print("✅ evaluate() done \n")
 
@@ -88,16 +88,21 @@ def pred(X:pd.DataFrame, model: MultinomialNB):
 
 if __name__ == '__main__':
     try:
-        text = "This is a text to test in the model a tendency of religion or god"
+        text = "This is a text to test in the model a tendency wich policitian, politics and people hates all the time but not religious people"
 
         path_artifacts = Path(os.path.dirname(__file__))
-        path_artifacts = path_artifacts.parent.absolute() / 'artifacts' ## url artifacts
+        path_artifacts = path_artifacts.parent.absolute() / 'artifacts'
         count_vectorizer_std = load_pickle(path_artifacts, 'count_vectorizer_std.pickle')
 
         if (count_vectorizer_std is None):
             print("Entra a entrenar de 0 y a guardar modelos")
             #Create data set
-            data = get_data()
+            if MODEL_TARGET.lower() == "gcp":
+                print("☁️ Cargando datos desde BigQuery")
+                data = get_data_bq()
+            else:
+                print("📂 Cargando datos desde CSV local")
+                data = get_data()
             data_sample = get_sample_data(data)
 
             ##Train the model and predict bias
@@ -105,28 +110,32 @@ if __name__ == '__main__':
             #Get encoded y and catalog encoded
             y_encoded_bias, catalog_values_encoded_bias = encoding_feature(data_sample,'bias_type')
             #Create metrics
-            metrics_bias = evaluate(X, y_encoded_bias)
-            metrics_bias = pd.DataFrame(metrics_bias)
+           # metrics_bias = evaluate(X, y_encoded_bias)
+            more_metrics_bias, model_bias = metrics_NB(X, y_encoded_bias)
+            print(more_metrics_bias)
+            metrics_bias = pd.DataFrame(more_metrics_bias)
             #Train model
-            model_bias = train(X,y_encoded_bias)
+           # model_bias = train(X,y_encoded_bias)
 
 
             #Get encoded y and catalog encoded
             y_encoded_sentiment, catalog_values_encoded_sentiment = encoding_feature(data_sample,'sentiment')
             #Evaluate a new model and predict sentiment
-            metrics_sentiment = evaluate(X, y_encoded_sentiment)
-            metrics_sentiment = pd.DataFrame(metrics_sentiment)
+            #metrics_sentiment = evaluate(X, y_encoded_sentiment)
+            more_metrics_sentiment, model_sentiment = metrics_NB(X, y_encoded_sentiment)
+            metrics_sentiment = pd.DataFrame(more_metrics_sentiment)
             #Train a new model and predict sentiment
-            model_sentiment= train(X,y_encoded_sentiment)
+            #model_sentiment= train(X,y_encoded_sentiment)
 
 
             #Train a new model and predict label
             y_encoded_label, catalog_values_encoded_label = encoding_feature(data_sample,'label')
             #Evaluate a new model and predict sentiment
-            metrics_label = evaluate(X, y_encoded_label)
-            metrics_label = pd.DataFrame(metrics_label)
+            #metrics_label = evaluate(X, y_encoded_label)
+            more_metrics_label, model_label = metrics_NB(X, y_encoded_label)
+            metrics_label = pd.DataFrame(more_metrics_label)
             #Train model
-            model_label= train(X,y_encoded_label)
+            #model_label= train(X,y_encoded_label)
 
             #Save transformer std
             count_vectorizer_std = save_pickle(path_artifacts, 'count_vectorizer_std.pickle',count_vectorizer_std)
@@ -152,6 +161,11 @@ if __name__ == '__main__':
             metrics_label.to_csv(path_artifacts /'metrics_label.csv', index=False)
             #Save model label
             model_label = save_pickle(path_artifacts, 'model_label.pickle',model_label)
+
+            # 3) Si estamos en GCP, sube los pickles recién generados
+            if MODEL_TARGET.lower() == "gcp":
+                print("☁️ Subiendo artefactos a GCS")
+                upload_all_pickles()
 
             print("Termina de entrenar de 0 y de guardar modelos")
 

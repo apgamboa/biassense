@@ -8,7 +8,7 @@ async-lru==2.0.5
 attrs==25.3.0
 babel==2.17.0
 beautifulsoup4==4.13.4
--e git+ssh://git@github.com/apgamboa/biassense.git@4edc9ad29a8f35ecf494d6c033e1b64bc42ae67c#egg=biassense&subdirectory=bias-sense
+-e git+ssh://git@github.com/apgamboa/biassense.git@9607dbc6457ffb476dd1247395a4753e18942030#egg=biassense&subdirectory=bias-sense
 bleach==6.2.0
 cachetools==5.5.2
 certifi==2025.6.15
@@ -19,10 +19,12 @@ colorama==0.4.6
 comm==0.2.2
 contourpy==1.3.2
 cycler==0.12.1
+db-dtypes==1.4.3
 debugpy==1.8.14
 decorator==5.2.1
 defusedxml==0.7.1
 dill==0.4.0
+dotenv==0.9.9
 exceptiongroup==1.3.0
 executing==2.2.0
 fastjsonschema==2.21.1
@@ -32,6 +34,7 @@ google-api-core==2.25.1
 google-auth==2.40.3
 google-cloud-bigquery==3.34.0
 google-cloud-core==2.4.3
+google-cloud-storage==3.2.0
 google-crc32c==1.7.1
 google-resumable-media==2.7.2
 googleapis-common-protos==1.70.0
@@ -97,6 +100,7 @@ protobuf==6.31.1
 psutil==7.0.0
 ptyprocess==0.7.0
 pure_eval==0.2.3
+pyarrow==20.0.0
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pycparser==2.22
@@ -105,6 +109,7 @@ pylint==3.3.7
 pyparsing==3.2.3
 pytest==8.4.0
 python-dateutil==2.9.0.post0
+python-dotenv==1.1.1
 python-json-logger==3.3.0
 pytz==2025.2
 PyYAML==6.0.2
