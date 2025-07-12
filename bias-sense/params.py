@@ -61,6 +61,8 @@ DTYPES_RAW = {
 
 DTYPES_PROCESSED = np.float32
 
+API_KEY_GOOGLE = 'AIzaSyCWNWLoC8fWXJpi60BIJi4dhzyrwAXPsJ4'
+
 ################## VALIDATIONS   Aca se va a modificar todavía ####################
 env_valid_options = dict(
     DATA_SIZE=["1k", "200k", "all"],
