@@ -6,6 +6,7 @@ from sklearn.model_selection import cross_validate
 from bias_sense.models.model import naive_bayes, naive_bayes_to_evaluate
 from sklearn.naive_bayes import MultinomialNB
 from models.model import metrics_NB
+from bias_sense.models.gen_ai import text_generator
 
 
 from colorama import Fore, Style
@@ -193,10 +194,13 @@ if __name__ == '__main__':
         y_result_label = pred(X_new, model_label)
         result_label = catalog_values_encoded_label.loc[catalog_values_encoded_label['encoded_target'] == y_result_label[0]]['target']
 
+        debiased_text = text_generator(text)
+        
         print(f"Text: {text}")
         print(f"Bias: {result_bias.item()}")
         print(f"Sentiment: {result_sentiment.item()}")
         print(f"Label: {result_label.item()}")
+        print(f"Debiased text: {debiased_text} ")
 
     except:
         import sys
