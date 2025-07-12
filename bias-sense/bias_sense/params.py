@@ -44,6 +44,10 @@ MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "")
 MLFLOW_EXPERIMENT   = os.getenv("MLFLOW_EXPERIMENT", "")
 MLFLOW_MODEL_NAME   = os.getenv("MLFLOW_MODEL_NAME", "")
 
+
+#Google IA
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
+
 ##################  CONSTANTS  ####################
 LOCAL_DATA_PATH     = os.path.join(os.path.expanduser("~"), ".lewagon", "mlops", "data")
 LOCAL_REGISTRY_PATH = os.path.join(os.path.expanduser("~"), ".lewagon", "mlops", "training_outputs")
