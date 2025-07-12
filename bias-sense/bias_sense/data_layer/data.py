@@ -7,6 +7,7 @@ from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import LabelEncoder
+from google.cloud import bigquery
 
 #Importando
 from google.cloud import bigquery
@@ -135,4 +136,30 @@ def get_sample_data(data:pd.DataFrame):
 
     print("✅ get_sample_data() done \n")
 
+    return data
+
+
+def get_data_bq() -> pd.DataFrame:
+    """
+    Lee los datos de BigQuery cuando MODEL_TARGET='gcp'.
+    """
+    print("☁️ get_data_bq()")
+    # Variables de entorno
+    project = os.environ["GCP_PROJECT"]
+    dataset = os.environ["BQ_DATASET"]
+    table   = os.environ.get("BQ_TABLE", "reduced_dataset")
+
+    # Cliente BigQuery
+    client = bigquery.Client(project=project, location=os.environ.get("BQ_REGION", None))
+
+    # Query
+    query = f"""
+        SELECT *
+        FROM `{project}.{dataset}.{table}`
+    """
+
+    # Ejecuta y a DataFrame
+    data = client.query(query).result().to_dataframe()
+
+    print(f"✅ get_data_bq done — filas: {len(data)}")
     return data
