@@ -8,6 +8,22 @@ import requests
 import streamlit as st
 from typing import List, Dict
 
+# ---------- CONFIG ----------
+api_url_naive_bayes: str = "http://localhost:8080/predict"
+api_url_transformer: str = "http://localhost:8081/predict_transformer"
+
+# ---------- MODEL VERSION SELECTOR ----------
+MODEL_CHOICES = {
+    "Naive Bayes (clásico)": "nb",          # old scikit‑learn model
+    "Transformer (multilabel)": "transformer"  # new HF‑embeddings model
+}
+model_key = st.sidebar.radio(
+    "Modelo a utilizar",
+    list(MODEL_CHOICES.keys()),
+    index=0  # pre‑select Naive Bayes
+)
+model_version = MODEL_CHOICES[model_key]
+
 # ---------- GLOBAL CSS FOR BETTER HIGHLIGHT ----------
 st.markdown(
     """
@@ -23,38 +39,16 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---------- CONFIG & SIDEBAR ----------
-st.sidebar.header("⚙️ Configuración")
-
-# URL por defecto (puede venir de .streamlit/secrets.toml)
-try:
-    DEFAULT_API_URL = st.secrets["API_URL"]
-except Exception:
-    DEFAULT_API_URL = ""
-
-api_url = st.sidebar.text_input("API endpoint", value=DEFAULT_API_URL)
-
-# Lista de modos mostrados en el selector
-MODES = ("Demo • sin spans", "Demo • con spans", "Backend real")
-
-# Si el usuario escribe una URL válida, forzamos “Backend real”
-forced_mode = "Backend real" if api_url else MODES[0]
-
-mode = st.sidebar.selectbox("Modo de ejecución", MODES, index=MODES.index(forced_mode))
-
-DEMO_MODE: bool = mode.startswith("Demo")
-DEMO_SPANS: bool = mode.endswith("con spans")
-
-if DEMO_MODE:
-    st.sidebar.info(f"Ejecutando en **{mode}**")
-else:
-    st.sidebar.success("Modo backend real activado")
-
 LABEL_COLORS = {
     "gender": "#F4A6B7",
+    "gender_bias": "#F4A6B7",
     "race": "#8CC2F2",
+    "social_bias": "#8CC2F2",
     "politics": "#A4D4AE",
+    "political_bias": "#A4D4AE",
     "hate": "#FFD86E",
+    "hate_speech": "#FFD86E",
+    "religion_bias": "#C7B8FF",
     "offensive": "#FFB980",
     "other": "#D3D3D3",
 }
@@ -62,57 +56,21 @@ LABEL_COLORS = {
 # ---------- HELPER ----------
 def call_api(text: str) -> Dict:
     """
-    Devuelve un diccionario con:
-    - labels: probabilidades por sesgo
-    - spans: posiciones a resaltar
-    - neutral_text: versión reescrita sin sesgo
-
-    El contenido depende del modo de ejecución seleccionado.
+    Llama al backend FastAPI correspondiente (Naive Bayes o Transformer)
+    y devuelve su JSON.
     """
-    # --- DEMO: sin spans ---
-    if DEMO_MODE and not DEMO_SPANS:
-        return {
-            "labels": {
-                "gender": 0.15,
-                "race": 0.05,
-                "politics": 0.60,
-                "hate": 0.02,
-                "offensive": 0.08,
-            },
-            "spans": [],
-            "neutral_text": text,
-        }
+    if model_version == "nb":
+        url = api_url_naive_bayes
+    else:  # "transformer"
+        url = api_url_transformer
 
-    # --- DEMO: con spans de ejemplo ---
-    if DEMO_MODE and DEMO_SPANS:
-        dummy_spans = [
-            {"start": 4, "end": 36, "label": "politics"},
-            {"start": 55, "end": 74, "label": "gender"},
-        ]
-        return {
-            "labels": {
-                "gender": 0.45,
-                "race": 0.03,
-                "politics": 0.70,
-                "hate": 0.01,
-                "offensive": 0.05,
-            },
-            "spans": dummy_spans,
-            "neutral_text": "Versión neutral generada con LLM…",
-        }
-
-    # --- BACKEND real ---
-    resp = requests.post(api_url, json={"text": text}, timeout=30)
+    resp = requests.post(url, json={"text": text}, timeout=50)
     resp.raise_for_status()
     return resp.json()
 
 def highlight_text(text: str, spans: List[Dict]) -> str:
     """
     Inserta marcas <mark> sobre las posiciones indicadas en *spans*.
-
-    📌 Futuro: cuando el modelo use LIME/SHAP para explicar la predicción,
-    simplemente rellenaremos la lista *spans* con los índices producidos
-    por el explicador.
     """
     spans_sorted = sorted(spans, key=lambda s: s["start"])
     html_parts, cursor = [], 0
@@ -141,11 +99,10 @@ if st.button("Analizar sesgos") and user_text.strip():
             # ----- Scores -----
             st.subheader("Probabilidad por sesgo")
             sorted_scores = sorted(result["labels"].items(), key=lambda x: x[1], reverse=True)
-            # Si todas las probabilidades son muy bajas, avisamos y saltamos el resto
-            MAX_PROB = max(result["labels"].values()) if result["labels"] else 0
-            if MAX_PROB < 0.10:
-                st.info("No se detectaron sesgos relevantes en el texto ingresado.")
+            if not result["labels"]:
+                st.info("No se recibieron probabilidades desde la API.")
             else:
+                MAX_PROB = max(result["labels"].values())
                 for lbl, prob in sorted_scores:
                     c1, c2 = st.columns([1, 4])
                     with c1:
@@ -156,7 +113,7 @@ if st.button("Analizar sesgos") and user_text.strip():
 
             # ----- Text highlight -----
             st.subheader("Texto con frases sesgadas resaltadas")
-            if MAX_PROB < 0.10:
+            if not result["labels"]:
                 # Sin sesgos significativos ➜ no resaltamos nada
                 st.info("—")
             else:
@@ -180,4 +137,4 @@ if st.button("Analizar sesgos") and user_text.strip():
 
 # ---------- FOOTER ----------
 st.markdown("---")
-st.caption("Bias Sense • v0.2 • © 2025")
+st.caption("Bias Sense • v1.0 • © 2025")

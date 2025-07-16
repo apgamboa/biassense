@@ -69,10 +69,26 @@ class BiasClassifier:
         probs = self._model.predict(emb, verbose=0)[0]  # (6,)
         return self._probs_to_result(probs)
 
+    # --- Nuevo: interface batch‑friendly para LIME/SHAP ------------------
+    def predict_proba(self, texts: list[str] | str) -> np.ndarray:
+        """
+        Devuelve matriz (n_samples, n_classes) con las probabilidades
+        que el modelo asigna a cada tipo de sesgo.
+        Acepta una cadena o una lista de cadenas.
+        """
+        if isinstance(texts, str):
+            texts = [texts]
+
+        # Embeddings para cada texto (shape → (n_samples, emb_dim))
+        embs = np.vstack([self._text_to_embedding(t) for t in texts])
+
+        # La última capa del modelo usa sigmoide → ya son probabilidades
+        return self._model.predict(embs, verbose=0)
+
     # Métodos de uso interno
     def _text_to_embedding(self, text: str) -> np.ndarray:
         vec = self._emb_client.feature_extraction(text, model=self._EMBED_MODEL)
-        return np.asarray(vec, dtype="float32")  # .reshape(1, -1)
+        return np.asarray(vec, dtype="float32").reshape(1, -1)
 
     def _probs_to_result(self, probs: np.ndarray) -> BiasDetectionResult:
         bias_types = [

@@ -151,4 +151,5 @@ fastapi
 uvicorn[standard]
 pydantic>=2
 #AI
-google.generativeai dotenv
+google-generativeai
+python-dotenv
