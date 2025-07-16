@@ -1,0 +1,19 @@
+#1. Base ligera de Python
+FROM python:3.10-slim
+
+#2. Directorio de trabajo
+WORKDIR /app
+
+#3. Copia e instala solo las deps de producción
+COPY requirements_api.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+#4. Copia todo tu código (incluye bias_sense/api/fast.py y artifacts/)
+COPY . .
+
+#5. Expone el puerto 8000
+EXPOSE 8000
+
+#6. Comando por defecto para iniciar FastAPI
+CMD ["uvicorn", "bias_sense.api.fast:app", "--host", "0.0.0.0", "--port", "8000"]
+
