@@ -7,13 +7,20 @@ from bias_sense.models.model import naive_bayes, naive_bayes_to_evaluate
 from sklearn.naive_bayes import MultinomialNB
 from models.model import metrics_NB
 from bias_sense.models.gen_ai import text_generator
-
+from dotenv import load_dotenv, find_dotenv
+from bias_sense.params import GCP_PROJECT, BUCKET_NAME, ARTIFACTS_FOLDER
 
 from colorama import Fore, Style
 
 from bias_sense.data_layer.data import clean_data, preprocess_features, create_vectorizer, encoding_feature
-from bias_sense.data_layer.data import get_data, generate_preprocess_new_text, get_sample_data
+from bias_sense.data_layer.data import get_data, generate_preprocess_new_text, get_sample_data, get_data_bq
 from bias_sense.utils.utilities import load_pickle, save_pickle
+
+# Import upload_all_pickles if it exists in your utilities module
+from bias_sense.utils.utilities import upload_all_pickles
+
+load_dotenv(find_dotenv(), override=True)
+MODEL_TARGET = os.getenv("MODEL_TARGET", "local")
 
 def preprocess(data:pd.DataFrame, target:str):
     """
@@ -100,7 +107,12 @@ if __name__ == '__main__':
         if (count_vectorizer_std is None):
             print("Entra a entrenar de 0 y a guardar modelos")
             #Create data set
-            data = get_data()
+            if MODEL_TARGET.lower() == "gcp":
+                print("☁️ Cargando datos desde BigQuery")
+                data = get_data_bq()
+            else:
+                print("📂 Cargando datos desde CSV local")
+                sdata = get_data()
             data_sample = get_sample_data(data)
 
             ##Train the model and predict bias
@@ -159,7 +171,9 @@ if __name__ == '__main__':
             metrics_label.to_csv(path_artifacts /'metrics_label.csv', index=False)
             #Save model label
             model_label = save_pickle(path_artifacts, 'model_label.pickle',model_label)
-
+            if MODEL_TARGET.lower() == "gcp":
+                print("☁️ Subiendo artefactos a GCS")
+                upload_all_pickles()
             print("Termina de entrenar de 0 y de guardar modelos")
 
         else:
@@ -195,7 +209,7 @@ if __name__ == '__main__':
         result_label = catalog_values_encoded_label.loc[catalog_values_encoded_label['encoded_target'] == y_result_label[0]]['target']
 
         debiased_text = text_generator(text)
-        
+
         print(f"Text: {text}")
         print(f"Bias: {result_bias.item()}")
         print(f"Sentiment: {result_sentiment.item()}")

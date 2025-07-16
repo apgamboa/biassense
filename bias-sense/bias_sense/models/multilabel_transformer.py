@@ -54,13 +54,18 @@ class BiasClassifier:
             raise FileNotFoundError(f"No se encontró el archivo MLBinarizer: {mlb_path}")
 
         # 2.1 Pesos del modelo y binarizer
-        self._model = tf.keras.models.load_model(model_path)
+        self._model = tf.keras.models.load_model(model_path, compile=False)
         self._mlb = joblib.load(mlb_path)
 
         # 2.2 Cliente para pasar el texto input a vector de embeddings
-        hf_token = hf_token or os.getenv("HF_TOKEN")
-        self._emb_client = InferenceClient(provider="nebius", token=hf_token)
+        # Leer el token correcto y pasarlo como `api_key`
+        hf_api_key = hf_token or os.getenv("HUGGINGFACE_API_KEY")
+        if not hf_api_key:
+            raise RuntimeError("Necesito HUGGINGFACE_API_KEY en el entorno para instanciar InferenceClient")
+        # Ahora sí le pasamos el api_key que espera el cliente
+        self._emb_client = InferenceClient(provider="nebius", api_key=hf_api_key)
 
+        # 2.3 Mapeo de etiqueta a índice para construir el resultado
         self._label2idx = {lbl: i for i, lbl in enumerate(self._mlb.classes_)}
 
     # Método público para obtener el sesgo en un texto, este se usará en el main
