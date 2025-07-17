@@ -87,7 +87,7 @@ class BiasClassifier:
             raise FileNotFoundError(f"No se encontró el archivo MLBinarizer: {mlb_path}")
 
         # 2.1 Pesos del modelo y binarizer
-        self._model = tf.keras.models.load_model(model_path)
+        self._model = tf.keras.models.load_model(model_path, compile=False)
         self._mlb = joblib.load(mlb_path)
 
         # 2.2 Cliente para pasar el texto input a vector de embeddings
@@ -96,7 +96,6 @@ class BiasClassifier:
             raise RuntimeError(
                 "Debes definir la variable de entorno INFINITY_TOKEN con tu Bearer-token.")
         self._emb_client = InfinityEmbClient(token=infinity_token, model=self._EMBED_MODEL)
-
         self._label2idx = {lbl: i for i, lbl in enumerate(self._mlb.classes_)}
 
     # Método público para obtener el sesgo en un texto, este se usará en el main
@@ -105,10 +104,27 @@ class BiasClassifier:
         probs = self._model.predict(emb, verbose=0)[0]  # (6,)
         return self._probs_to_result(probs)
 
+    # --- Nuevo: interface batch‑friendly para LIME/SHAP ------------------
+    def predict_proba(self, texts: list[str] | str) -> np.ndarray:
+        """
+        Devuelve matriz (n_samples, n_classes) con las probabilidades
+        que el modelo asigna a cada tipo de sesgo.
+        Acepta una cadena o una lista de cadenas.
+        """
+        if isinstance(texts, str):
+            texts = [texts]
+
+        # Embeddings para cada texto (shape → (n_samples, emb_dim))
+        embs = np.vstack([self._text_to_embedding(t) for t in texts])
+
+        # La última capa del modelo usa sigmoide → ya son probabilidades
+        return self._model.predict(embs, verbose=0)
+
     # Métodos de uso interno
     def _text_to_embedding(self, text: str) -> np.ndarray:
         vec = self._emb_client.embed(text)  # list[float]
         return np.asarray(vec, dtype="float32").reshape(1, -1)  # o sin el .reshape(1, -1)
+
 
     def _probs_to_result(self, probs: np.ndarray) -> BiasDetectionResult:
         bias_types = [
