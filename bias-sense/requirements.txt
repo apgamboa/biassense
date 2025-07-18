@@ -153,3 +153,4 @@ pydantic>=2
 #AI
 google-generativeai
 python-dotenv
+streamlit>=1.0.0

@@ -1,8 +1,12 @@
-python-dotenv
 fastapi
 uvicorn[standard]
+pydantic>=2
+python-dotenv
+google-generativeai
+pandas
+numpy
+scikit-learn
+lime
 transformers
 torch>=1.13.0
-scikit-learn
-joblib
-numpy
+colorama
