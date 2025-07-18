@@ -1,15 +1,28 @@
+"""Multilabel transformer‑based bias detector.
+
+Incluye:
+- Dataclass de salida `BiasDetectionResult`.
+- Cliente de embeddings `InfinityEmbClient` con soporte batch (feature_extraction).
+- `BiasClassifier` que usa TF + emb client y expone `predict` y `predict_proba`.
+
+Pensado para usarse desde `api/api_transformer.py`.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
 import os
 from pathlib import Path
+from typing import Any, Dict, List
+
 import numpy as np
 import joblib
+import requests
 import tensorflow as tf
-from huggingface_hub import InferenceClient
 
+# ---------------------------------------------------------------------------
+# Salida estructurada --------------------------------------------------------
+# ---------------------------------------------------------------------------
 
-# Objeto de salida para la API
 @dataclass(slots=True)
 class BiasDetectionResult:
     other: float
@@ -19,81 +32,112 @@ class BiasDetectionResult:
     political_bias: float
     religion_bias: float
 
-    def to_dict(self) -> dict:
-        """Para convertirlo a diccionario en vez de objeto"""
+    def to_dict(self) -> dict:  # handy for JSON
         return asdict(self)
 
+# ---------------------------------------------------------------------------
+# Cliente de embeddings (Infinity / HF provider) ----------------------------
+# ---------------------------------------------------------------------------
 
-# Clase del modelo
+class InfinityEmbClient:
+    """Wrapea el endpoint Infinity‑Embeddings con reuse de sesión y batch.
+
+    Parameters
+    ----------
+    token : str
+        Bearer token válido para el provider.
+    model : str, default "Qwen/Qwen3-Embedding-8B"
+        Nombre del modelo remoto.
+    """
+
+    _URL = (
+        "https://vicenciojulio2025--qwen-infinity-serve-infinity.modal.run/embeddings"
+    )
+
+    def __init__(self, token: str, model: str = "Qwen/Qwen3-Embedding-8B") -> None:
+        self._session = requests.Session()
+        self._headers = {
+            "Accept": "application/json",
+            "Authorization": f"Bearer {token}",  # usa el token recibido
+            "Content-Type": "application/json",
+        }
+        self._model = model
+
+    # --- batch (preferido) --------------------------------------------------
+    def feature_extraction(self, texts: List[str]) -> List[List[float]]:
+        """Devuelve embedding por cada texto en una sola llamada HTTP."""
+        payload: Dict[str, Any] = {
+            "model": self._model,
+            "encoding_format": "float",
+            "dimensions": 0,  # usar dims por defecto (4096 en este modelo)
+            "input": texts,
+            "modality": "text",
+        }
+        resp = self._session.post(
+            self._URL, headers=self._headers, json=payload, timeout=60
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return [d["embedding"] for d in data["data"]]
+
+    # --- un texto (retro‑compat) -------------------------------------------
+    def embed(self, text: str) -> List[float]:
+        return self.feature_extraction([text])[0]
+
+# ---------------------------------------------------------------------------
+# Clasificador ---------------------------------------------------------------
+# ---------------------------------------------------------------------------
+
 class BiasClassifier:
+    """Carga pesos Keras + binarizer y predice prob. de sesgo."""
+
     _EMBED_MODEL = "Qwen/Qwen3-Embedding-8B"
 
     def __init__(
-            self,
-            model_path: str = None,
-            mlb_path: str = None,
-            hf_token: str | None = None,
+        self,
+        model_path: str | None = None,
+        mlb_path: str | None = None,
+        infinity_token: str | None = None,
     ) -> None:
-        # Obtener el directorio del archivo actual (multilabel_transformer.py)
-        current_file = Path(__file__).resolve()
+        # localización de artifacts
+        project_root = Path(__file__).resolve().parent.parent.parent
+        model_path = model_path or project_root / "artifacts/deep_learning/modelo.h5"
+        mlb_path = mlb_path or project_root / "artifacts/deep_learning/multilabel_binarizer.joblib"
 
-        # multilabel_transformer.py está en bias_sense/models/
-        # Necesitamos subir 2 niveles para llegar al directorio raíz del proyecto
-        project_root = current_file.parent.parent.parent  # Esto nos lleva a bias-sense/
-
-        # Construir las rutas
-        if model_path is None:
-            model_path = project_root / "artifacts" / "deep_learning" / "modelo.h5"
-        if mlb_path is None:
-            mlb_path = project_root / "artifacts" / "deep_learning" / "multilabel_binarizer.joblib"
-
-        # Verificar que los archivos existen
         if not Path(model_path).exists():
-            raise FileNotFoundError(f"No se encontró el archivo del modelo: {model_path}")
+            raise FileNotFoundError(f"No se encontró el modelo: {model_path}")
         if not Path(mlb_path).exists():
-            raise FileNotFoundError(f"No se encontró el archivo MLBinarizer: {mlb_path}")
+            raise FileNotFoundError(f"No se encontró el binarizer: {mlb_path}")
 
-        # 2.1 Pesos del modelo y binarizer
+        # carga pesos y binarizer
         self._model = tf.keras.models.load_model(model_path, compile=False)
         self._mlb = joblib.load(mlb_path)
 
-        # 2.2 Cliente para pasar el texto input a vector de embeddings
-        # Leer el token correcto y pasarlo como `api_key`
-        hf_api_key = hf_token or os.getenv("HUGGINGFACE_API_KEY")
-        if not hf_api_key:
-            raise RuntimeError("Necesito HUGGINGFACE_API_KEY en el entorno para instanciar InferenceClient")
-        # Ahora sí le pasamos el api_key que espera el cliente
-        self._emb_client = InferenceClient(provider="nebius", api_key=hf_api_key)
+        # cliente embeddings
+        infinity_token = infinity_token or os.getenv("INFINITY_TOKEN")
+        if not infinity_token:
+            raise RuntimeError("Define INFINITY_TOKEN con tu Bearer‑token")
+        self._emb_client = InfinityEmbClient(token=infinity_token, model=self._EMBED_MODEL)
 
-        # 2.3 Mapeo de etiqueta a índice para construir el resultado
+        # map label -> idx para convertir probs
         self._label2idx = {lbl: i for i, lbl in enumerate(self._mlb.classes_)}
 
-    # Método público para obtener el sesgo en un texto, este se usará en el main
+    # ------------------------- API pública ----------------------------------
+
     def predict(self, text: str) -> BiasDetectionResult:
-        emb = self._text_to_embedding(text)
-        probs = self._model.predict(emb, verbose=0)[0]  # (6,)
+        vec = self._emb_client.embed(text)  # list[float]
+        probs = self._model.predict(np.asarray([vec], dtype="float32"), verbose=0)[0]
         return self._probs_to_result(probs)
 
-    # --- Nuevo: interface batch‑friendly para LIME/SHAP ------------------
     def predict_proba(self, texts: list[str] | str) -> np.ndarray:
-        """
-        Devuelve matriz (n_samples, n_classes) con las probabilidades
-        que el modelo asigna a cada tipo de sesgo.
-        Acepta una cadena o una lista de cadenas.
-        """
+        """Devuelve matriz (n_samples, n_labels) de probabilidades."""
         if isinstance(texts, str):
             texts = [texts]
-
-        # Embeddings para cada texto (shape → (n_samples, emb_dim))
-        embs = np.vstack([self._text_to_embedding(t) for t in texts])
-
-        # La última capa del modelo usa sigmoide → ya son probabilidades
+        vecs = self._emb_client.feature_extraction(texts)  # 🔹 1 sola llamada HTTP
+        embs = np.asarray(vecs, dtype="float32")
         return self._model.predict(embs, verbose=0)
 
-    # Métodos de uso interno
-    def _text_to_embedding(self, text: str) -> np.ndarray:
-        vec = self._emb_client.feature_extraction(text, model=self._EMBED_MODEL)
-        return np.asarray(vec, dtype="float32").reshape(1, -1)
+    # ------------------------- utils internos -------------------------------
 
     def _probs_to_result(self, probs: np.ndarray) -> BiasDetectionResult:
         bias_types = [

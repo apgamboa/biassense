@@ -22,3 +22,21 @@ def get_bias(text: str):
     Devuelve BiasDetectionResult con los seis porcentajes (0-1).
     """
     return _get_classifier().predict(text)
+
+
+if __name__ == "__main__":
+    # Si se quiere usar en consola, pero lo dejo pendiente
+    """
+    if len(sys.argv) < 2:
+        print("Uso: python -m bias_sense.main \"Texto a analizar\"")
+        sys.exit(1)
+
+    texto = " ".join(sys.argv[1:])
+    resultado = get_bias(texto)
+    print(json.dumps(resultado.to_dict(), ensure_ascii=False, indent=2))
+    """
+
+    texto = "¿Conocen el juego de Hitler secreto?"
+    resultado = get_bias(texto)
+    print(json.dumps(resultado.to_dict(), ensure_ascii=False, indent=2))
+    print(resultado)
